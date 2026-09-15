@@ -130,7 +130,7 @@ export default function HRAttendancePage() {
           <div>
             <p className="text-[11px] font-bold uppercase tracking-widest text-slate-400">Daily Log</p>
             {/* Fixed unescaped entity on Today's */}
-            <h2 className="mt-0.5 text-lg font-bold text-slate-900">Today&apos;s Attendance Summary</h2>
+            <h2 className="mt-0.5 text-lg font-bold text-slate-900">Today Attendance Summary</h2>
           </div>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />

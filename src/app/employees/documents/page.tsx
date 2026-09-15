@@ -841,7 +841,7 @@ function DeleteModal({ name, onConfirm, onClose }: { name: string; onConfirm: ()
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-rose-100">
               <Trash2 className="h-7 w-7 text-rose-600" />
             </div>
-            <p className="text-base font-bold text-slate-900">Delete &quot;{name}&quot;?</p>
+            <p className="text-base font-bold text-slate-900">Delete {name}?</p>
             <p className="mt-1 text-sm text-slate-500">This action cannot be undone.</p>
             <div className="mt-5 flex gap-3">
               <button onClick={onClose}      className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
