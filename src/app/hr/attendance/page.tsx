@@ -48,7 +48,7 @@ export default function HRAttendancePage() {
 
       <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-bold text-slate-900">Today's Attendance — Sep 12</h2>
+          <h2 className="text-lg font-bold text-slate-900">Today&apos;s Attendance — Sep 12</h2>
           <div className="flex flex-wrap gap-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />

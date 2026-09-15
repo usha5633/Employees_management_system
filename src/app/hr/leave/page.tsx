@@ -78,7 +78,7 @@ export default function HRLeavePage() {
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ${l.color}`}>{l.avatar}</div>
                 <div className="min-w-0">
                   <p className="font-semibold text-slate-900">{l.name}</p>
-                  <p className="text-xs text-slate-500">{l.type} · {l.from} – {l.to} ({l.days}d) · "{l.reason}"</p>
+                  <p className="text-xs text-slate-500">{l.type} · {l.from} – {l.to} ({l.days}d) · &quot;{l.reason}&quot;</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
