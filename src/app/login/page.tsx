@@ -14,18 +14,19 @@ export default function LoginPage() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [resendStatus, setResendStatus] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
+  const [resendStatus, setResendStatus] = useState<string | null>(null);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
     try {
       const res = await fetch('/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
       const json = await res.json();
 
@@ -50,6 +51,7 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
     try {
       const res = await fetch('/api/v1/auth/verify-otp', {
         method: 'POST',
@@ -73,17 +75,20 @@ export default function LoginPage() {
 
   async function handleResend() {
     setError(null);
-    setResending(true);
     setResendStatus(null);
+    setResending(true);
+
     try {
       const res = await fetch('/api/v1/auth/resend-otp', { method: 'POST' });
-      if (res.ok) {
-        setResendStatus('Verification code resent successfully.');
+      const json = await res.json();
+
+      if (res.ok && json.success) {
+        setResendStatus('Verification code resent to your email.');
       } else {
-        setError('Failed to resend code. Please try again in a moment.');
+        setError(json?.error?.message || 'Failed to resend code.');
       }
     } catch {
-      setError('Failed to resend code. Please try again in a moment.');
+      setError('Failed to resend code. Please try again.');
     } finally {
       setResending(false);
     }
@@ -161,14 +166,15 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={handleBackToCredentials}
-                  className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800"
+                  className="mb-4 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors"
                 >
-                  <ArrowLeft className="h-3.5 w-3.5" /> Back to login
+                  <ArrowLeft className="h-3.5 w-3.5" /> Back to email
                 </button>
 
                 <p className="mb-4 text-sm text-slate-600">
-                  We sent a verification code to <span className="font-medium text-slate-800">{email}</span>. Enter it below to continue.
+                  We sent a verification code to <span className="font-semibold text-slate-800">{email}</span>. Enter it below to continue.
                 </p>
+
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Verification code
                 </label>
@@ -205,7 +211,7 @@ export default function LoginPage() {
                 type="button"
                 disabled={resending}
                 onClick={handleResend}
-                className="w-full text-center text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                className="w-full text-center text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50 transition-colors"
               >
                 {resending ? 'Sending...' : 'Resend code'}
               </button>
