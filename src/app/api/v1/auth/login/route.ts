@@ -127,7 +127,10 @@ import { verifyPassword, createSession } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password } = await req.json();
+    const body = await req.json();
+    const { email, password } = body;
+
+    console.log('--- LOGIN ATTEMPT ---', { email });
 
     if (!email || !password) {
       return NextResponse.json(
@@ -138,10 +141,11 @@ export async function POST(req: NextRequest) {
 
     const db = await getDatabase();
     const user = await db.collection('users').findOne({
-      email: email.toLowerCase(),
+      email: email.trim().toLowerCase(),
     });
 
     if (!user) {
+      console.log('LOGIN FAILED: User not found in MongoDB');
       return NextResponse.json(
         { error: 'User not found' },
         { status: 401 }
@@ -155,9 +159,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Pass password AND check both password/passwordHash keys
     const storedHashOrPassword = user.password || user.passwordHash || '';
     const validPassword = verifyPassword(password, storedHashOrPassword);
+
+    console.log('PASSWORD CHECK RESULT:', validPassword);
 
     if (!validPassword) {
       return NextResponse.json(
@@ -166,11 +171,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Create session cookie
     await createSession(user._id.toString(), user.role, user.tenantId);
 
     return NextResponse.json({
       success: true,
-      role: user.role,
+      role: user.role || 'admin',
       redirectTo:
         user.role === 'admin'
           ? '/admin'
@@ -181,13 +187,10 @@ export async function POST(req: NextRequest) {
           : '/employee',
     });
   } catch (error) {
-    console.error('LOGIN ERROR:', error);
+    console.error('SERVER LOGIN ERROR:', error);
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Internal Server Error',
+        error: error instanceof Error ? error.message : 'Internal Server Error',
       },
       { status: 500 }
     );
