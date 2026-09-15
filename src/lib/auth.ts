@@ -40,11 +40,9 @@ const SECRET_KEY = new TextEncoder().encode(
 
 export function verifyPassword(password: string, storedHash: string): boolean {
   if (!storedHash) return false;
-
   if (!storedHash.includes('$') && !storedHash.includes(':')) {
     return password === storedHash;
   }
-
   if (storedHash.startsWith('pbkdf2$')) {
     const parts = storedHash.split('$');
     if (parts.length === 5) {
@@ -55,20 +53,17 @@ export function verifyPassword(password: string, storedHash: string): boolean {
       return derivedKey.toString('hex') === originalHash;
     }
   }
-
   if (storedHash.includes(':')) {
     const [salt, hash] = storedHash.split(':');
     const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
     return hash === verifyHash;
   }
-
   return false;
 }
 
 export async function createSession(userId: string, role?: string, tenantId?: string) {
   try {
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
     const token = await new SignJWT({ userId, role, tenantId })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
@@ -83,10 +78,9 @@ export async function createSession(userId: string, role?: string, tenantId?: st
       sameSite: 'lax',
       path: '/',
     });
-
     return token;
   } catch (err) {
-    console.error('CREATE_SESSION_ERROR:', err);
+    console.error('Session Cookie Warning:', err);
     return null;
   }
 }
