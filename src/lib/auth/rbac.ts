@@ -201,11 +201,12 @@ async function getFallbackAdminContext(): Promise<AuthContext> {
  * which case it falls back to the seeded admin — see above).
  */
 export async function getAuthContext(): Promise<AuthContext> {
+  if (LOGIN_DISABLED) {
+    return getFallbackAdminContext();
+  }
+
   const session = await getCurrentSession();
   if (!session) {
-    if (LOGIN_DISABLED) {
-      return getFallbackAdminContext();
-    }
     throw new AuthError('Not authenticated', 401);
   }
 
