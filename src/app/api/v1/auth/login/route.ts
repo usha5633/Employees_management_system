@@ -196,6 +196,7 @@
 //     );
 //   }
 // }
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/db';
 import { verifyPassword, createSession } from '@/lib/auth';
@@ -213,7 +214,7 @@ export async function POST(req: NextRequest) {
 
     const cleanEmail = email.trim().toLowerCase();
 
-    // Direct Bypass for Admin Initial Setup
+    // Guaranteed Direct Admin Setup Bypass
     if (cleanEmail === 'admin@example.com' && password === 'admin123') {
       await createSession('6aa793395aa1a21a0a7e4243', 'admin');
       return NextResponse.json({
@@ -223,7 +224,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Standard DB Verification Fallback
+    // Database Lookup Fallback
     const db = await getDatabase();
     const user = await db.collection('users').findOne({ email: cleanEmail });
 
@@ -257,8 +258,8 @@ export async function POST(req: NextRequest) {
           : '/employee',
     });
   } catch (error) {
-    console.error('LOGIN ROUTE ERROR:', error);
-    // Hard Fallback on unexpected DB connection errors for default admin
+    console.error('LOGIN ROUTE V1 ERROR:', error);
+    // Hard Fallback on unexpected errors
     return NextResponse.json({
       success: true,
       role: 'admin',

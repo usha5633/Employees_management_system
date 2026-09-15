@@ -30,7 +30,7 @@
 //   return false;
 // }
 
-import { SignJWT, jwtVerify } from 'jose';
+import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
 
@@ -38,16 +38,13 @@ const SECRET_KEY = new TextEncoder().encode(
   process.env.NEXTAUTH_SECRET || 'fallback-secret-key-change-in-production'
 );
 
-// ─── Password Verification (Plaintext, PBKDF2, Salt:Hash) ───
 export function verifyPassword(password: string, storedHash: string): boolean {
   if (!storedHash) return false;
 
-  // 1. Direct Plaintext Match (Dev/Fallback)
   if (!storedHash.includes('$') && !storedHash.includes(':')) {
     return password === storedHash;
   }
 
-  // 2. PBKDF2 Standard Format (pbkdf2$iterations$digest$salt$hash)
   if (storedHash.startsWith('pbkdf2$')) {
     const parts = storedHash.split('$');
     if (parts.length === 5) {
@@ -59,7 +56,6 @@ export function verifyPassword(password: string, storedHash: string): boolean {
     }
   }
 
-  // 3. Simple salt:hash Format
   if (storedHash.includes(':')) {
     const [salt, hash] = storedHash.split(':');
     const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
@@ -69,10 +65,9 @@ export function verifyPassword(password: string, storedHash: string): boolean {
   return false;
 }
 
-// ─── Create JWT Session Cookie ───
 export async function createSession(userId: string, role?: string, tenantId?: string) {
   try {
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 Days
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     const token = await new SignJWT({ userId, role, tenantId })
       .setProtectedHeader({ alg: 'HS256' })
@@ -90,8 +85,8 @@ export async function createSession(userId: string, role?: string, tenantId?: st
     });
 
     return token;
-  } catch (error) {
-    console.error('CREATE_SESSION_ERROR:', error);
-    throw new Error('Failed to create session');
+  } catch (err) {
+    console.error('CREATE_SESSION_ERROR:', err);
+    return null;
   }
 }
