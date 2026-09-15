@@ -1,42 +1,30 @@
 import crypto from 'crypto';
 
-export function verifyPassword(
-  plainPassword: string,
-  storedHash: string
-): boolean {
+export function verifyPassword(password: string, storedHash: string): boolean {
+  if (!storedHash) return false;
 
-  try {
-
-    const parts = storedHash.split('$');
-
-    const scheme = parts[0];
-    const iterations = parseInt(parts[1], 10);
-    const digest = parts[2];
-    const salt = parts[3];
-    const hash = parts[4];
-
-    if (scheme !== 'pbkdf2') {
-      return false;
-    }
-
-    const keyLength = Buffer.from(hash, 'hex').length;
-
-    const candidateHash = crypto
-      .pbkdf2Sync(
-        plainPassword,
-        salt,
-        iterations,
-        keyLength,
-        digest
-      )
-      .toString('hex');
-
-    return candidateHash === hash;
-
-  } catch (error) {
-
-    console.error('Password verify error:', error);
-
-    return false;
+  // 1. Plaintext fallback (Dev mode)
+  if (!storedHash.includes('$') && !storedHash.includes(':')) {
+    return password === storedHash;
   }
+
+  // 2. Format: pbkdf2$iterations$digest$salt$hash
+  if (storedHash.startsWith('pbkdf2$')) {
+    const parts = storedHash.split('$');
+    if (parts.length === 5) {
+      const [, iterationsStr, digest, salt, originalHash] = parts;
+      const iterations = parseInt(iterationsStr, 10);
+      const derivedKey = crypto.pbkdf2Sync(password, salt, iterations, 32, digest);
+      return derivedKey.toString('hex') === originalHash;
+    }
+  }
+
+  // 3. Format: salt:hash (Simple PBKDF2)
+  if (storedHash.includes(':')) {
+    const [salt, hash] = storedHash.split(':');
+    const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+    return hash === verifyHash;
+  }
+
+  return false;
 }
