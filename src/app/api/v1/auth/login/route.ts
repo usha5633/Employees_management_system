@@ -197,67 +197,70 @@
 //   }
 // }
 
-import { NextRequest, NextResponse } from 'next/server';
-import { getDatabase } from '@/lib/db';
-import { verifyPassword, createSession } from '@/lib/auth';
+import { NextRequest } from 'next/server';
+import { z } from 'zod';
+import { getDb } from '@/lib/db/mongodb';
+import { COLLECTIONS } from '@/lib/db/collections';
+import { verifyPassword } from '@/lib/auth/password';
+import { createSession } from '@/lib/auth/session';
+import { issueOtp, sendOtp } from '@/lib/auth/otp';
+import { getPanelPathForRole } from '@/lib/auth/roles';
+import { ok, fail, withErrorHandling } from '@/lib/utils/api-response';
 
-export const dynamic = 'force-dynamic';
+const LoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
 
+// POST /api/v1/auth/login
+// Step 1 of auth: verify email/password. If the account has 2FA enabled,
+// sets an mfa-unverified session cookie and emails/logs an OTP — the client
+// must then call /verify-otp. Otherwise it signs the user straight in.
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json().catch(() => ({}));
-    const email = (body.email || '').trim().toLowerCase();
-    const password = body.password || '';
+  return withErrorHandling(async () => {
+    const { email, password } = LoginSchema.parse(await req.json());
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: 'Email and password are required' },
-        { status: 400 }
-      );
+    const db = await getDb();
+    const user = await db.collection(COLLECTIONS.USERS).findOne({ email: cleanEmail });
+
+    if (!user) {
+      return fail('Invalid email or password.', 401);
     }
 
-    // Direct Fail-Safe Bypass for Admin Setup
-    if (email === 'admin@example.com' && password === 'admin123') {
-      await createSession('6aa793395aa1a21a0a7e4243', 'admin');
-      return NextResponse.json({
-        success: true,
-        role: 'admin',
-        redirectTo: '/admin',
-      });
+    if (user.disabled) {
+      return fail('This account has been disabled. Contact your administrator.', 403);
     }
 
-    // DB Check
-    let user = null;
-    try {
-      const db = await getDatabase();
-      user = await db.collection('users').findOne({ email });
-    } catch (dbErr) {
-      console.error('DB Error:', dbErr);
+    const validPassword = verifyPassword(password, user.passwordHash || '');
+    if (!validPassword) {
+      return fail('Invalid email or password.', 401);
     }
 
-    if (user) {
-      const storedHashOrPassword = user.password || user.passwordHash || '';
-      const validPassword = verifyPassword(password, storedHashOrPassword);
+    const userAgent = req.headers.get('user-agent') || undefined;
+    const ip = req.headers.get('x-forwarded-for') || undefined;
 
-      if (validPassword) {
-        await createSession(user._id.toString(), user.role, user.tenantId);
-        return NextResponse.json({
-          success: true,
-          role: user.role || 'admin',
-          redirectTo: user.role === 'admin' ? '/admin' : '/employee',
-        });
-      }
-    }
+    // Accounts default to requiring MFA unless explicitly disabled (mfaEnabled === false).
+    const mfaRequired = user.mfaEnabled !== false;
 
-    return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
-  } catch (error) {
-    console.error('LOGIN_CRASH_BYPASS:', error);
-    // Force successful response to prevent "Something went wrong" popup
-    await createSession('6aa793395aa1a21a0a7e4243', 'admin');
-    return NextResponse.json({
-      success: true,
-      role: 'admin',
-      redirectTo: '/admin',
+    await createSession({
+      userId: user._id.toString(),
+      role: user.role,
+      mfaVerified: !mfaRequired,
+      userAgent,
+      ip,
     });
-  }
+
+    if (mfaRequired) {
+      const code = await issueOtp(user._id.toString());
+      await sendOtp(user._id.toString(), code, user.email);
+      return ok({ mfaRequired: true });
+    }
+
+    return ok({
+      mfaRequired: false,
+      role: user.role,
+      redirectTo: getPanelPathForRole(user.role),
+    });
+  });
 }
