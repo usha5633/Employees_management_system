@@ -4,6 +4,7 @@ import { getDatabase } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
+// GET: Fetch Projects directly from MongoDB (No Static Mock Fallbacks)
 export async function GET(req: NextRequest) {
   try {
     const auth = await getAuthContext();
@@ -17,31 +18,70 @@ export async function GET(req: NextRequest) {
     const dbProjects = await db
       .collection('projects')
       .find({ tenantId })
+      .sort({ createdAt: -1 })
       .toArray();
 
-    if (!dbProjects || dbProjects.length === 0) {
-      const defaultProjects = [
-        { id: '1', name: 'Design System v2', lead: 'Aanya Sharma', team: 3, progress: 72, status: 'On Track', deadline: 'Sep 30', color: 'from-violet-500 to-purple-500' },
-        { id: '2', name: 'Mobile App MVP', lead: 'Rohit Verma', team: 4, progress: 45, status: 'At Risk', deadline: 'Oct 10', color: 'from-amber-400 to-orange-500' },
-        { id: '3', name: 'API Integration', lead: 'Vikram Singh', team: 2, progress: 90, status: 'On Track', deadline: 'Sep 20', color: 'from-blue-500 to-indigo-500' },
-        { id: '4', name: 'UX Research Phase', lead: 'Sneha Pillai', team: 2, progress: 60, status: 'On Track', deadline: 'Oct 5', color: 'from-pink-400 to-rose-500' },
-      ];
-      return NextResponse.json({ projects: defaultProjects });
-    }
-
-    const formatted = dbProjects.map((p) => ({
+    const formatted = (dbProjects || []).map((p) => ({
       id: p._id.toString(),
       name: p.name || 'Untitled Project',
       lead: p.lead || 'Team Lead',
-      team: p.teamMembersCount || p.team || 0,
+      team: p.teamMembersCount ?? p.team ?? 0,
       progress: p.progress ?? 0,
       status: p.status || 'On Track',
       deadline: p.deadline || 'N/A',
-      color: p.color || 'from-blue-500 to-indigo-500',
+      color: p.color || 'from-blue-600 to-indigo-600',
     }));
 
     return NextResponse.json({ projects: formatted });
   } catch (error: any) {
     return NextResponse.json({ error: 'Failed to fetch projects' }, { status: 500 });
+  }
+}
+
+// POST: Direct Insert to MongoDB
+export async function POST(req: NextRequest) {
+  try {
+    const auth = await getAuthContext();
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { name, lead, team, progress, status, deadline } = body;
+
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
+    }
+
+    const db = await getDatabase();
+    const tenantId = auth.user.tenantId;
+
+    const newProjectDocument = {
+      tenantId,
+      name: name.trim(),
+      lead: lead?.trim() || auth.user.name || 'Team Lead',
+      team: Number(team) || 1,
+      teamMembersCount: Number(team) || 1,
+      progress: progress ?? 0,
+      status: status || 'On Track',
+      deadline: deadline || 'N/A',
+      color: 'from-blue-600 to-indigo-600',
+      createdAt: new Date(),
+    };
+
+    const result = await db.collection('projects').insertOne(newProjectDocument);
+
+    return NextResponse.json(
+      {
+        success: true,
+        project: {
+          id: result.insertedId.toString(),
+          ...newProjectDocument,
+        },
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    return NextResponse.json({ error: 'Failed to save project' }, { status: 500 });
   }
 }
