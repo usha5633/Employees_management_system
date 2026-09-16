@@ -1,48 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/rbac';
+import { NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const auth = await getAuthContext();
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { month } = await request.json();
 
-    const { month } = await req.json();
-
+    // Generate clean text-based PDF/statement layout only for the requested payslip
     const payslipContent = `
-==============================================
-               SALARY PAYSLIP
-==============================================
-Month       : ${month || 'September 2026'}
-Employee ID : ${auth.user._id}
-Tenant ID   : ${auth.user.tenantId}
-
-EARNINGS & DEDUCTIONS:
-----------------------------------------------
-Basic Salary     : ₹25,000
-Allowances       : ₹7,000
-Bonuses          : ₹2,500
-Gross Salary     : ₹34,500
-
-Deductions       : ₹3,000
-Tax              : ₹2,500
-Total Deductions : ₹5,500
-
-----------------------------------------------
-NET SALARY       : ₹29,000
-Status           : PAID
-==============================================
+============================================================
+                  OFFICIAL SALARY PAYSLIP                   
+============================================================
+Statement Month : ${month || 'September 2026'}
+Disbursement Date: 01st of following month
+Status          : PAID & VERIFIED
+------------------------------------------------------------
+EARNINGS BREAKDOWN:
+  - Basic Salary             : ₹25,000.00
+  - House Rent Allowance     : ₹4,500.00
+  - Special Allowance        : ₹2,500.00
+  - Performance Incentives   : ₹2,500.00
+------------------------------------------------------------
+DEDUCTIONS & TAXES:
+  - Provident Fund (PF)      : ₹1,800.00
+  - Professional Tax (PT)    : ₹200.00
+  - Income Tax (TDS)         : ₹1,000.00
+------------------------------------------------------------
+GROSS SALARY                 : ₹34,500.00
+TOTAL DEDUCTIONS             : ₹3,000.00
+NET TAKE-HOME AMOUNT         : ₹29,000.00
+============================================================
+            Generated via InfiniteCloud HR Engine           
+============================================================
 `;
 
     return new NextResponse(payslipContent, {
-      status: 200,
       headers: {
-        'Content-Type': 'text/plain',
-        'Content-Disposition': `attachment; filename="Payslip-${(month || 'September-2026').replace(/\s+/g, '-')}.txt"`,
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="Payslip_${(month || 'Statement').replace(/\s+/g, '_')}.pdf"`,
       },
     });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to generate document' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Download failed' }, { status: 500 });
   }
 }

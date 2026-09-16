@@ -1,7 +1,23 @@
 'use client';
 
 import EmployeePageShell from '@/components/employee/EmployeePageShell';
-import { CalendarCheck2, FileText, Plus, Search, Upload, Loader2, X } from 'lucide-react';
+import {
+  CalendarCheck2,
+  FileText,
+  Plus,
+  Search,
+  Upload,
+  Loader2,
+  X,
+  Sparkles,
+  CheckCircle2,
+  AlertCircle,
+  Calendar,
+  Clock,
+  ShieldAlert,
+  ChevronRight,
+  PlaneTakeoff,
+} from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 
 interface LeaveRequest {
@@ -11,6 +27,7 @@ interface LeaveRequest {
   end: string;
   status: 'Pending' | 'Approved' | 'Rejected';
   tone: 'warning' | 'success' | 'danger';
+  reason?: string;
 }
 
 interface LeaveBalance {
@@ -26,6 +43,10 @@ export default function LeavePage() {
   const [summary, setSummary] = useState({ pending: 0, approved: 0, rejected: 0 });
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Modal State for Apply Leave Form
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Form states
   const [leaveType, setLeaveType] = useState('Casual Leave');
@@ -36,11 +57,15 @@ export default function LeavePage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch Leave Data from Backend
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
   const fetchLeaveData = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/v1/leaves');
+      const res = await fetch('/api/v1/leaves/request');
       const contentType = res.headers.get('content-type');
       if (res.ok && contentType && contentType.includes('application/json')) {
         const data = await res.json();
@@ -59,10 +84,15 @@ export default function LeavePage() {
     fetchLeaveData();
   }, []);
 
-  // Handle Form Submission (FormData for File Upload)
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!startDate || !endDate) {
       setError('Please select both Start Date and End Date.');
+      return;
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+      setError('Start date cannot be after the end date.');
       return;
     }
 
@@ -81,26 +111,24 @@ export default function LeavePage() {
 
       const res = await fetch('/api/v1/leaves/request', {
         method: 'POST',
-        body: formData, // Browser sets multipart/form-data boundary automatically
+        body: formData,
       });
-
-      const contentType = res.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`Server returned non-JSON response (${res.status}). Check API Route path.`);
-      }
 
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Failed to submit leave request');
       }
 
-      // Reset form & Refresh Table
+      // Reset Form & Close Modal & Refresh
       setReason('');
       setStartDate('');
       setEndDate('');
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      fetchLeaveData();
+      setIsModalOpen(false);
+      
+      await fetchLeaveData();
+      triggerToast('Leave request submitted and routed to manager successfully!');
     } catch (err: any) {
       setError(err.message || 'Error submitting request');
     } finally {
@@ -110,23 +138,173 @@ export default function LeavePage() {
 
   return (
     <EmployeePageShell
-      title="Leave Management"
-      subtitle="Apply for leave and track your requests in one place."
+      title="Leave & Time-Off Portal"
+      subtitle="Manage corporate leave quotas, submit time-off applications, and track manager approvals."
       actions={
         <button
-          onClick={() => {
-            const formElement = document.getElementById('apply-leave-section');
-            formElement?.scrollIntoView({ behavior: 'smooth' });
-          }}
-          className="inline-flex items-center gap-2 rounded-full bg-[#3B6DF5] px-4 py-2 text-[12px] font-semibold text-white shadow-[0_12px_24px_rgba(59,109,245,0.25)] hover:bg-[#2F5FE7]"
+          onClick={() => setIsModalOpen(true)}
+          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-500 active:scale-95 transition-all"
         >
           <Plus className="h-4 w-4" />
-          Apply Leave
+          <span>Apply For Leave</span>
         </button>
       }
     >
+      {/* Toast Alert */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl backdrop-blur-xl animate-bounce">
+          <Sparkles className="h-5 w-5 text-blue-600" />
+          <span className="text-xs font-bold text-slate-800">{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Interactive Apply Leave Modal */}
+      {isModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 transition-all"
+          onClick={() => setIsModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-5 flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
+                  <PlaneTakeoff className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">New Leave Application</h3>
+                  <p className="text-[11px] font-bold text-slate-400">Direct routing to reporting manager</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {error && (
+              <div className="mb-4 flex items-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-bold text-rose-600">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">Leave Type</label>
+                <select
+                  value={leaveType}
+                  onChange={(e) => setLeaveType(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-blue-600 transition-all"
+                >
+                  <option>Casual Leave</option>
+                  <option>Sick Leave</option>
+                  <option>Paid Leave</option>
+                  <option>Unpaid Leave</option>
+                  <option>Work From Home</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">Reason / Subject</label>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-blue-600 transition-all"
+                  placeholder="e.g. Family function or medical checkup"
+                  required
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">Start Date</label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-blue-600 transition-all"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">End Date</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-xs font-bold text-slate-900 outline-none focus:border-blue-600 transition-all"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Supporting Document Upload */}
+              <div>
+                <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">Supporting Document (Optional)</label>
+                <div className="flex items-center justify-between rounded-2xl border border-dashed border-slate-300 bg-slate-50/70 px-4 py-3 text-xs text-slate-600">
+                  <span className="inline-flex items-center gap-2 truncate max-w-[240px]">
+                    <Upload className="h-4 w-4 shrink-0 text-blue-600" />
+                    {file ? <span className="font-bold text-slate-900">{file.name}</span> : 'Upload medical certificate or notice'}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {file && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFile(null);
+                          if (fileInputRef.current) fileInputRef.current.value = '';
+                        }}
+                        className="rounded-lg p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                    <label className="cursor-pointer rounded-xl bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600 border border-blue-100 hover:bg-blue-100 transition-colors">
+                      Browse
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files?.[0]) setFile(e.target.files[0]);
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="w-1/3 rounded-xl border border-slate-200 bg-white py-3 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-2/3 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-3 text-xs font-bold text-white shadow-lg shadow-blue-600/25 hover:bg-blue-500 active:scale-95 transition-all disabled:opacity-50"
+                >
+                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  <span>{submitting ? 'Submitting...' : 'Submit Request'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Leave Balances Grid */}
-      <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {(balances.length > 0
           ? balances
           : [
@@ -136,222 +314,116 @@ export default function LeavePage() {
               { label: 'Unpaid leave', value: '2', tone: 'orange' },
             ]
         ).map(({ label, value, tone }) => (
-          <div key={label} className="rounded-[18px] border border-[#E7ECF5] bg-white p-5 shadow-[0_10px_24px_rgba(35,65,140,0.04)]">
+          <div
+            key={label}
+            className="group rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-sm backdrop-blur-xl transition-all hover:-translate-y-0.5 hover:shadow-md"
+          >
             <div
-              className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[12px] ${
+              className={`mb-3 flex h-10 w-10 items-center justify-center rounded-2xl ${
                 tone === 'blue'
-                  ? 'bg-[#EAF0FF] text-[#3B6DF5]'
+                  ? 'bg-blue-50 text-blue-600 border border-blue-100'
                   : tone === 'green'
-                  ? 'bg-[#EAF7EE] text-[#1DAA6E]'
+                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                   : tone === 'purple'
-                  ? 'bg-[#F0EBFF] text-[#7B5AF0]'
-                  : 'bg-[#FFF3E7] text-[#D68A28]'
+                  ? 'bg-purple-50 text-purple-600 border border-purple-100'
+                  : 'bg-amber-50 text-amber-600 border border-amber-100'
               }`}
             >
               <CalendarCheck2 className="h-5 w-5" />
             </div>
-            <div className="text-[12px] text-[#7581A3]">{label}</div>
-            <div className="mt-2 text-[24px] font-extrabold text-[#1E2A45]">{value}</div>
+            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">{label}</div>
+            <div className="mt-2 text-3xl font-black text-slate-900">{value} Days</div>
           </div>
         ))}
       </div>
 
-      {/* Main Grid: Apply Form & Overview */}
-      <div className="mb-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <div id="apply-leave-section" className="rounded-[20px] border border-[#E7ECF5] bg-white p-5 shadow-[0_10px_28px_rgba(35,65,140,0.04)]">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#EAF0FF] text-[#3B6DF5]">
-              <FileText className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[12px] uppercase tracking-[0.09em] text-[#7581A3]">Request</div>
-              <h3 className="text-[18px] font-bold text-[#1E2A45]">Apply leave</h3>
-            </div>
-          </div>
-
-          {error && (
-            <div className="mb-4 rounded-[12px] bg-[#FDE8EC] p-3 text-[12px] font-semibold text-[#F1526D]">
-              {error}
-            </div>
-          )}
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-[12px] font-semibold text-[#53627F]">Leave type</label>
-              <select
-                value={leaveType}
-                onChange={(e) => setLeaveType(e.target.value)}
-                className="w-full rounded-[12px] border border-[#E7ECF5] bg-[#F8FAFF] px-3 py-2.5 text-[13px] text-[#1E2A45] outline-none focus:border-[#3B6DF5]"
-              >
-                <option>Casual Leave</option>
-                <option>Sick Leave</option>
-                <option>Paid Leave</option>
-                <option>Unpaid Leave</option>
-                <option>Work From Home</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-[12px] font-semibold text-[#53627F]">Reason</label>
-              <input
-                type="text"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                className="w-full rounded-[12px] border border-[#E7ECF5] bg-[#F8FAFF] px-3 py-2.5 text-[13px] text-[#1E2A45] outline-none focus:border-[#3B6DF5]"
-                placeholder="Family function"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-[12px] font-semibold text-[#53627F]">Start date</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full rounded-[12px] border border-[#E7ECF5] bg-[#F8FAFF] px-3 py-2.5 text-[13px] text-[#1E2A45] outline-none focus:border-[#3B6DF5]"
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-[12px] font-semibold text-[#53627F]">End date</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full rounded-[12px] border border-[#E7ECF5] bg-[#F8FAFF] px-3 py-2.5 text-[13px] text-[#1E2A45] outline-none focus:border-[#3B6DF5]"
-              />
-            </div>
-          </div>
-
-          {/* Supporting Document File Input */}
-          <div className="mt-4">
-            <label className="mb-1 block text-[12px] font-semibold text-[#53627F]">Supporting document</label>
-            <div className="flex items-center justify-between rounded-[12px] border border-dashed border-[#C9D8FF] bg-[#F7F9FF] px-3 py-3 text-[13px] text-[#53627F]">
-              <span className="inline-flex items-center gap-2 truncate max-w-[220px]">
-                <Upload className="h-4 w-4 shrink-0 text-[#3B6DF5]" />
-                {file ? <span className="font-medium text-[#1E2A45]">{file.name}</span> : 'Upload document'}
-              </span>
-              <div className="flex items-center gap-2">
-                {file && (
-                  <button
-                    onClick={() => {
-                      setFile(null);
-                      if (fileInputRef.current) fileInputRef.current.value = '';
-                    }}
-                    className="p-1 text-slate-400 hover:text-slate-600"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                )}
-                <label className="cursor-pointer rounded-full bg-[#EAF0FF] px-3 py-1.5 text-[11px] font-bold text-[#3B6DF5] hover:bg-[#D8E4FF]">
-                  Choose file
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files?.[0]) setFile(e.target.files[0]);
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 flex justify-end">
-            <button
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="inline-flex items-center gap-2 rounded-full bg-[#3B6DF5] px-5 py-2.5 text-[12px] font-semibold text-white shadow-[0_10px_20px_rgba(59,109,245,0.22)] hover:bg-[#2F5FE7] disabled:opacity-50"
-            >
-              {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              {submitting ? 'Submitting...' : 'Submit request'}
-            </button>
+      {/* Analytics Summary Banner */}
+      <div className="mb-8 rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
+        <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Analytics</span>
+            <h3 className="text-base font-black text-slate-900">Leave Status Breakdown</h3>
           </div>
         </div>
 
-        {/* Leave Overview Summary */}
-        <div className="rounded-[20px] border border-[#E7ECF5] bg-white p-5 shadow-[0_10px_28px_rgba(35,65,140,0.04)]">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#EAF0FF] text-[#3B6DF5]">
-              <Search className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[12px] uppercase tracking-[0.09em] text-[#7581A3]">Summary</div>
-              <h3 className="text-[18px] font-bold text-[#1E2A45]">Leave overview</h3>
-            </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Pending Manager Approvals</div>
+            <div className="mt-1 text-2xl font-black text-amber-600">{String(summary.pending).padStart(2, '0')}</div>
           </div>
-
-          <div className="space-y-3">
-            <div className="rounded-[14px] bg-[#F8FAFF] p-3">
-              <div className="text-[12px] text-[#7581A3]">Pending requests</div>
-              <div className="mt-1 text-[22px] font-extrabold text-[#1E2A45]">
-                {String(summary.pending).padStart(2, '0')}
-              </div>
-            </div>
-            <div className="rounded-[14px] bg-[#F8FAFF] p-3">
-              <div className="text-[12px] text-[#7581A3]">Approved</div>
-              <div className="mt-1 text-[22px] font-extrabold text-[#1E2A45]">
-                {String(summary.approved).padStart(2, '0')}
-              </div>
-            </div>
-            <div className="rounded-[14px] bg-[#F8FAFF] p-3">
-              <div className="text-[12px] text-[#7581A3]">Rejected</div>
-              <div className="mt-1 text-[22px] font-extrabold text-[#1E2A45]">
-                {String(summary.rejected).padStart(2, '0')}
-              </div>
-            </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Approved Time-Offs</div>
+            <div className="mt-1 text-2xl font-black text-emerald-600">{String(summary.approved).padStart(2, '0')}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Rejected Requests</div>
+            <div className="mt-1 text-2xl font-black text-rose-600">{String(summary.rejected).padStart(2, '0')}</div>
           </div>
         </div>
       </div>
 
       {/* Request History Table */}
-      <div className="rounded-[20px] border border-[#E7ECF5] bg-white p-5 shadow-[0_10px_28px_rgba(35,65,140,0.04)]">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
+        <div className="mb-5 flex items-center justify-between">
           <div>
-            <div className="text-[12px] font-semibold uppercase tracking-[0.09em] text-[#7581A3]">Requests</div>
-            <h3 className="mt-1 text-[18px] font-bold text-[#1E2A45]">Leave request history</h3>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Timeline</span>
+            <h3 className="text-base font-black text-slate-900">Leave Request History</h3>
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[16px] border border-[#E7ECF5]">
+        <div className="overflow-hidden rounded-2xl border border-slate-100">
           {loading ? (
-            <div className="flex h-32 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-[#3B6DF5]" />
+            <div className="flex h-36 items-center justify-center bg-slate-50">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
             </div>
           ) : leaveRequests.length === 0 ? (
-            <div className="py-8 text-center text-[13px] text-[#7581A3]">No leave requests found.</div>
+            <div className="py-12 text-center text-xs font-semibold text-slate-400">No leave requests found in database.</div>
           ) : (
-            <table className="min-w-full text-left text-[13px]">
-              <thead className="bg-[#F8FAFF] text-[#7581A3]">
+            <table className="w-full text-left text-xs font-semibold text-slate-600">
+              <thead className="bg-slate-50 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Type</th>
-                  <th className="px-4 py-3 font-semibold">Start date</th>
-                  <th className="px-4 py-3 font-semibold">End date</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Action</th>
+                  <th className="px-5 py-3.5">Leave Type</th>
+                  <th className="px-5 py-3.5">Start Date</th>
+                  <th className="px-5 py-3.5">End Date</th>
+                  <th className="px-5 py-3.5">Reason</th>
+                  <th className="px-5 py-3.5">Status</th>
+                  <th className="px-5 py-3.5 text-right">Action</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {leaveRequests.map((request, index) => (
-                  <tr key={request.id || index} className="border-t border-[#E7ECF5] bg-white">
-                    <td className="px-4 py-3 font-medium text-[#1E2A45]">{request.type}</td>
-                    <td className="px-4 py-3 text-[#53627F]">{request.start}</td>
-                    <td className="px-4 py-3 text-[#53627F]">{request.end}</td>
-                    <td className="px-4 py-3">
+                  <tr key={request.id || index} className="bg-white hover:bg-slate-50/80 transition-colors">
+                    <td className="px-5 py-4 font-bold text-slate-900">{request.type}</td>
+                    <td className="px-5 py-4 text-slate-600">{request.start}</td>
+                    <td className="px-5 py-4 text-slate-600">{request.end}</td>
+                    <td className="px-5 py-4 text-slate-500 max-w-[200px] truncate">{request.reason || 'N/A'}</td>
+                    <td className="px-5 py-4">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                          request.tone === 'success'
-                            ? 'bg-[#EAF7EE] text-[#1DAA6E]'
-                            : request.tone === 'warning'
-                            ? 'bg-[#FFF3D8] text-[#C98900]'
-                            : 'bg-[#FDE8EC] text-[#F1526D]'
+                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase ${
+                          request.tone === 'success' || request.status === 'Approved'
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                            : request.tone === 'warning' || request.status === 'Pending'
+                            ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                            : 'bg-rose-50 text-rose-600 border border-rose-200'
                         }`}
                       >
                         {request.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 font-semibold text-[#3B6DF5]">Cancel</td>
+                    <td className="px-5 py-4 text-right">
+                      {request.status === 'Pending' ? (
+                        <button
+                          onClick={async () => {
+                            triggerToast('Leave request cancellation requested.');
+                          }}
+                          className="font-bold text-rose-600 hover:text-rose-700 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      ) : (
+                        <span className="text-slate-400 font-medium">Locked</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

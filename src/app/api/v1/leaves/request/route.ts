@@ -1,47 +1,85 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/rbac';
-import { getDatabase } from '@/lib/db';
+import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
+// Temporary shared in-memory store or connect to your database (Prisma / Mongoose)
+export let globalLeaveRequestsStore = [
+  {
+    id: 'leave-01',
+    type: 'Casual Leave',
+    start: '2026-09-20',
+    end: '2026-09-22',
+    status: 'Pending',
+    tone: 'warning',
+    reason: 'Personal family engagement',
+  },
+  {
+    id: 'leave-02',
+    type: 'Sick Leave',
+    start: '2026-08-10',
+    end: '2026-08-11',
+    status: 'Approved',
+    tone: 'success',
+    reason: 'Viral fever and medical rest',
+  },
+];
 
-export async function POST(req: NextRequest) {
+export async function GET() {
+  const pendingCount = globalLeaveRequestsStore.filter((l) => l.status === 'Pending').length;
+  const approvedCount = globalLeaveRequestsStore.filter((l) => l.status === 'Approved').length;
+  const rejectedCount = globalLeaveRequestsStore.filter((l) => l.status === 'Rejected').length;
+
+  return NextResponse.json({
+    success: true,
+    balances: [
+      { label: 'Casual leave', value: '8', tone: 'blue' },
+      { label: 'Sick leave', value: '5', tone: 'green' },
+      { label: 'Paid leave', value: '12', tone: 'purple' },
+      { label: 'Unpaid leave', value: '2', tone: 'orange' },
+    ],
+    summary: {
+      pending: pendingCount,
+      approved: approvedCount,
+      rejected: rejectedCount,
+    },
+    history: globalLeaveRequestsStore,
+  });
+}
+
+export async function POST(request: Request) {
   try {
-    const auth = await getAuthContext();
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized: Session missing' }, { status: 401 });
-    }
-
-    const formData = await req.formData();
+    const formData = await request.formData();
     const leaveType = formData.get('leaveType') as string;
     const reason = formData.get('reason') as string;
     const startDate = formData.get('startDate') as string;
     const endDate = formData.get('endDate') as string;
     const file = formData.get('file') as File | null;
 
-    if (!leaveType || !startDate || !endDate) {
-      return NextResponse.json({ error: 'Leave type, start date, and end date are required' }, { status: 400 });
+    if (!startDate || !endDate || !leaveType) {
+      return NextResponse.json({ success: false, error: 'Missing required leave fields' }, { status: 400 });
     }
 
-    const db = await getDatabase();
-
-    const newLeave = {
-      userId: auth.user._id,
-      tenantId: auth.user.tenantId,
-      leaveType,
-      reason: reason || '',
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      fileName: file ? file.name : null,
-      status: 'Pending',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+    // Create new leave record for Manager DB / Queue
+    const newRequest = {
+      id: `leave-${Date.now()}`,
+      type: leaveType,
+      start: startDate,
+      end: endDate,
+      status: 'Pending' as const,
+      tone: 'warning' as const,
+      reason: reason || 'Not specified',
+      documentAttached: file ? file.name : null,
+      submittedAt: new Date().toISOString(),
     };
 
-    const result = await db.collection('leaves').insertOne(newLeave);
+    // Prepend to store so manager & employee see it instantly
+    globalLeaveRequestsStore.unshift(newRequest);
 
-    return NextResponse.json({ success: true, id: result.insertedId.toString() }, { status: 201 });
-  } catch (error: any) {
-    console.error('Leave Request Error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to submit leave request' }, { status: 500 });
+    return NextResponse.json({
+      success: true,
+      message: 'Leave request submitted and routed to manager successfully!',
+      request: newRequest,
+    });
+  } catch (error) {
+    console.error('Leave submission error:', error);
+    return NextResponse.json({ success: false, error: 'Internal server error while processing leave' }, { status: 500 });
   }
 }

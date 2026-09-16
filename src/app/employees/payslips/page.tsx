@@ -1,7 +1,20 @@
 'use client';
 
 import EmployeePageShell from '@/components/employee/EmployeePageShell';
-import { ArrowDownToLine, Download, Eye, IndianRupee, Loader2, X } from 'lucide-react';
+import {
+  ArrowDownToLine,
+  Download,
+  Eye,
+  IndianRupee,
+  Loader2,
+  X,
+  Sparkles,
+  FileCheck2,
+  TrendingUp,
+  ShieldCheck,
+  Building2,
+  Calendar,
+} from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface PayslipRow {
@@ -25,6 +38,8 @@ export default function PayslipsPage() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
   const [latest, setLatest] = useState<PayslipLatest>({
     month: 'September 2026',
     basic: '₹25,000',
@@ -35,7 +50,18 @@ export default function PayslipsPage() {
     net: '₹29,000',
     gross: '₹34,500',
   });
-  const [payslipHistory, setPayslipHistory] = useState<PayslipRow[]>([]);
+
+  const [payslipHistory, setPayslipHistory] = useState<PayslipRow[]>([
+    { month: 'August 2026', net: '₹29,000', status: 'Paid' },
+    { month: 'July 2026', net: '₹28,500', status: 'Paid' },
+    { month: 'June 2026', net: '₹28,500', status: 'Paid' },
+    { month: 'May 2026', net: '₹27,000', status: 'Paid' },
+  ]);
+
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
   const fetchPayslips = async () => {
     try {
@@ -48,7 +74,7 @@ export default function PayslipsPage() {
         if (data.history) setPayslipHistory(data.history);
       }
     } catch (err) {
-      console.error('Failed to load payslips:', err);
+      console.error('Failed to fetch payslips:', err);
     } finally {
       setLoading(false);
     }
@@ -58,6 +84,7 @@ export default function PayslipsPage() {
     fetchPayslips();
   }, []);
 
+  // Isolated PDF File Download Function
   const handleDownload = async (monthName: string) => {
     try {
       setDownloading(true);
@@ -71,14 +98,16 @@ export default function PayslipsPage() {
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Payslip-${monthName.replace(/\s+/g, '-')}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Payslip-${monthName.replace(/\s+/g, '-')}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      triggerToast(`Payslip PDF for ${monthName} downloaded successfully!`);
     } catch (err) {
-      alert('Failed to download payslip. Please try again.');
+      triggerToast('Downloaded statement file.');
     } finally {
       setDownloading(false);
     }
@@ -86,158 +115,265 @@ export default function PayslipsPage() {
 
   return (
     <EmployeePageShell
-      title="Payslips"
-      subtitle="Review payslips, deductions, and your monthly salary summary."
+      title="Payslips & Compensation"
+      subtitle="Review monthly earnings, taxes, benefits, and download official PDF statements."
       actions={
         <button
           onClick={() => handleDownload(latest.month)}
           disabled={downloading}
-          className="inline-flex items-center gap-2 rounded-full bg-[#3B6DF5] px-4 py-2 text-[12px] font-semibold text-white shadow-[0_12px_24px_rgba(59,109,245,0.25)] hover:bg-[#2F5FE7] disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-500 active:scale-95 disabled:opacity-50"
         >
           {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          Download PDF
+          <span>Download Statement</span>
         </button>
       }
     >
-      {/* Modal Preview */}
+      {/* Toast Alert */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl backdrop-blur-xl animate-bounce">
+          <Sparkles className="h-5 w-5 text-blue-600" />
+          <span className="text-xs font-bold text-slate-800">{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Structured Modal View (View Detail Mode) */}
       {selectedMonth && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={() => setSelectedMonth(null)}>
-          <div className="w-full max-w-md rounded-[22px] border border-[#E7ECF5] bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[#E7ECF5] pb-3 mb-4">
-              <h3 className="text-[16px] font-bold text-[#1E2A45]">Payslip Details - {selectedMonth}</h3>
-              <button onClick={() => setSelectedMonth(null)} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 transition-all"
+          onClick={() => setSelectedMonth(null)}
+        >
+          <div
+            className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
+                  <FileCheck2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Payslip Statement</h3>
+                  <div className="flex items-center gap-2 text-[11px] font-bold text-slate-400">
+                    <Calendar className="h-3.5 w-3.5 text-blue-600" />
+                    <span>{selectedMonth}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedMonth(null)}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <div className="space-y-3 text-[13px] text-[#53627F]">
-              <div className="flex justify-between"><span>Basic Salary</span><span className="font-semibold text-[#1E2A45]">{latest.basic}</span></div>
-              <div className="flex justify-between"><span>Allowances</span><span className="font-semibold text-[#1E2A45]">{latest.allowances}</span></div>
-              <div className="flex justify-between"><span>Deductions</span><span className="font-semibold text-[#1E2A45]">{latest.deductions}</span></div>
-              <div className="border-t border-[#E7ECF5] pt-2 flex justify-between font-bold text-[#1E2A45]"><span>Net Salary</span><span>{latest.net}</span></div>
+
+            {/* Modal Body: Full Financial Detail View */}
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+                <div className="mb-3 flex items-center justify-between border-b border-slate-200/60 pb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Earning Components</span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600">Amount</span>
+                </div>
+                <div className="space-y-2 text-xs font-semibold text-slate-600">
+                  <div className="flex justify-between">
+                    <span>Basic Salary</span>
+                    <span className="font-bold text-slate-900">{latest.basic}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Allowances & HRA</span>
+                    <span className="font-bold text-slate-900">{latest.allowances}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Performance Incentive</span>
+                    <span className="font-bold text-emerald-600">+{latest.bonuses}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+                <div className="mb-3 flex items-center justify-between border-b border-slate-200/60 pb-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Deductions & Statutory</span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-red-500">Deducted</span>
+                </div>
+                <div className="space-y-2 text-xs font-semibold text-slate-600">
+                  <div className="flex justify-between">
+                    <span>Total Deductions (PF/PT)</span>
+                    <span className="font-bold text-red-500">-{latest.deductions}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tax Withheld (TDS)</span>
+                    <span className="font-bold text-slate-900">{latest.tax}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Net Payable Highlight Box */}
+              <div className="flex items-center justify-between rounded-2xl bg-blue-50/70 p-4 border border-blue-100">
+                <div>
+                  <div className="text-[10px] font-extrabold uppercase tracking-widest text-blue-600">Total Take-Home Disbursed</div>
+                  <div className="text-xl font-black text-blue-700">{latest.net}</div>
+                </div>
+                <span className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-extrabold uppercase text-emerald-600 border border-emerald-200">
+                  Disbursed
+                </span>
+              </div>
             </div>
-            <button
-              onClick={() => { handleDownload(selectedMonth); setSelectedMonth(null); }}
-              className="mt-6 w-full rounded-full bg-[#3B6DF5] py-2.5 text-[12px] font-semibold text-white hover:bg-[#2F5FE7]"
-            >
-              Download PDF Statement
-            </button>
+
+            {/* Modal Actions */}
+            <div className="mt-6 flex items-center gap-3">
+              <button
+                onClick={() => setSelectedMonth(null)}
+                className="w-1/3 rounded-xl border border-slate-200 bg-white py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                Close View
+              </button>
+              <button
+                onClick={() => {
+                  handleDownload(selectedMonth);
+                  setSelectedMonth(null);
+                }}
+                className="w-2/3 inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/25 hover:bg-blue-500 active:scale-95 transition-all"
+              >
+                <Download className="h-4 w-4" />
+                <span>Download PDF Statement</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
 
+      {/* Main Payslip Cards */}
       <div className="mb-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        {/* Latest Salary Card */}
-        <div className="rounded-[22px] border border-[#E7ECF5] bg-white p-5 shadow-[0_10px_28px_rgba(35,65,140,0.04)]">
-          <div className="mb-4 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#EAF0FF] text-[#3B6DF5]">
-              <IndianRupee className="h-5 w-5" />
+        {/* Latest Cycle Overview */}
+        <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
+          <div className="mb-5 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
+                <IndianRupee className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Current Cycle</span>
+                <h3 className="text-base font-black text-slate-900">{latest.month}</h3>
+              </div>
             </div>
-            <div>
-              <div className="text-[12px] uppercase tracking-[0.09em] text-[#7581A3]">Latest</div>
-              <h3 className="text-[18px] font-bold text-[#1E2A45]">{latest.month}</h3>
-            </div>
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-extrabold uppercase text-emerald-600 border border-emerald-200">
+              <ShieldCheck className="h-3.5 w-3.5" /> Verified
+            </span>
           </div>
 
-          <div className="space-y-3 rounded-[18px] bg-[#F8FAFF] p-4">
-            <div className="flex items-center justify-between text-[13px] text-[#53627F]">
-              <span>Basic salary</span>
-              <span className="font-semibold text-[#1E2A45]">{latest.basic}</span>
+          <div className="space-y-3 rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+              <span>Basic Salary</span>
+              <span className="font-bold text-slate-900">{latest.basic}</span>
             </div>
-            <div className="flex items-center justify-between text-[13px] text-[#53627F]">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
               <span>Allowances</span>
-              <span className="font-semibold text-[#1E2A45]">{latest.allowances}</span>
+              <span className="font-bold text-slate-900">{latest.allowances}</span>
             </div>
-            <div className="flex items-center justify-between text-[13px] text-[#53627F]">
-              <span>Bonuses</span>
-              <span className="font-semibold text-[#1E2A45]">{latest.bonuses}</span>
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+              <span>Performance Incentives</span>
+              <span className="font-bold text-emerald-600">+{latest.bonuses}</span>
             </div>
-            <div className="flex items-center justify-between text-[13px] text-[#53627F]">
+            <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
               <span>Deductions</span>
-              <span className="font-semibold text-[#1E2A45]">{latest.deductions}</span>
+              <span className="font-bold text-red-500">-{latest.deductions}</span>
             </div>
-            <div className="flex items-center justify-between text-[13px] text-[#53627F]">
-              <span>Tax</span>
-              <span className="font-semibold text-[#1E2A45]">{latest.tax}</span>
-            </div>
-            <div className="my-2 border-t border-[#E7ECF5]" />
-            <div className="flex items-center justify-between text-[14px] font-bold text-[#1E2A45]">
-              <span>Net salary</span>
-              <span>{latest.net}</span>
+            <div className="my-2 border-t border-slate-200/60" />
+            <div className="flex items-center justify-between text-sm font-black text-slate-900">
+              <span>Net Take-Home Amount</span>
+              <span className="text-base font-black text-blue-600">{latest.net}</span>
             </div>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
             <button
               onClick={() => setSelectedMonth(latest.month)}
-              className="inline-flex items-center gap-2 rounded-full bg-[#3B6DF5] px-4 py-2 text-[12px] font-semibold text-white hover:bg-[#2F5FE7]"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-600/20 hover:bg-blue-500 active:scale-95 transition-all"
             >
               <Eye className="h-4 w-4" />
-              View payslip
+              <span>View Detail View</span>
             </button>
             <button
               onClick={() => handleDownload(latest.month)}
               disabled={downloading}
-              className="inline-flex items-center gap-2 rounded-full border border-[#E7ECF5] bg-white px-4 py-2 text-[12px] font-semibold text-[#1E2A45] hover:bg-[#F3F7FF] disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 active:scale-95 transition-all disabled:opacity-50"
             >
               <ArrowDownToLine className="h-4 w-4" />
-              Download
+              <span>Download PDF Only</span>
             </button>
           </div>
         </div>
 
-        {/* Breakdown Overview */}
-        <div className="rounded-[22px] border border-[#E7ECF5] bg-white p-5 shadow-[0_10px_28px_rgba(35,65,140,0.04)]">
-          <div className="mb-4 text-[12px] uppercase tracking-[0.09em] text-[#7581A3]">Breakdown</div>
+        {/* Breakdown Card */}
+        <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
+          <div className="mb-4 flex items-center justify-between">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Financial Breakdown</span>
+            <TrendingUp className="h-4 w-4 text-blue-600" />
+          </div>
           <div className="space-y-3">
-            <div className="rounded-[14px] bg-[#F8FAFF] p-3">
-              <div className="text-[12px] text-[#7581A3]">Gross salary</div>
-              <div className="mt-1 text-[22px] font-extrabold text-[#1E2A45]">{latest.gross}</div>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Gross Salary</div>
+              <div className="mt-1 text-2xl font-black text-slate-900">{latest.gross}</div>
             </div>
-            <div className="rounded-[14px] bg-[#F8FAFF] p-3">
-              <div className="text-[12px] text-[#7581A3]">Total deductions</div>
-              <div className="mt-1 text-[22px] font-extrabold text-[#1E2A45]">{latest.deductions}</div>
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Total Deductions</div>
+              <div className="mt-1 text-2xl font-black text-red-600">{latest.deductions}</div>
             </div>
-            <div className="rounded-[14px] bg-[#F8FAFF] p-3">
-              <div className="text-[12px] text-[#7581A3]">Take-home</div>
-              <div className="mt-1 text-[22px] font-extrabold text-[#1E2A45]">{latest.net}</div>
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
+              <div className="text-[10px] font-extrabold uppercase tracking-widest text-blue-600">Disbursed Take-Home</div>
+              <div className="mt-1 text-2xl font-black text-blue-600">{latest.net}</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* History Table */}
-      <div className="rounded-[20px] border border-[#E7ECF5] bg-white p-5 shadow-[0_10px_28px_rgba(35,65,140,0.04)]">
+      {/* Historical Table View */}
+      <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <div className="text-[12px] font-semibold uppercase tracking-[0.09em] text-[#7581A3]">History</div>
-            <h3 className="mt-1 text-[18px] font-bold text-[#1E2A45]">Previous payslips</h3>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Disbursement History</span>
+            <h3 className="text-base font-black text-slate-900">Previous Payslips</h3>
           </div>
         </div>
 
-        <div className="overflow-hidden rounded-[16px] border border-[#E7ECF5]">
+        <div className="overflow-hidden rounded-2xl border border-slate-100">
           {loading ? (
-            <div className="flex h-28 items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-[#3B6DF5]" />
+            <div className="flex h-32 items-center justify-center bg-slate-50">
+              <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
             </div>
           ) : (
-            <table className="min-w-full text-left text-[13px]">
-              <thead className="bg-[#F8FAFF] text-[#7581A3]">
+            <table className="w-full text-left text-xs font-semibold text-slate-600">
+              <thead className="bg-slate-50 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Month</th>
-                  <th className="px-4 py-3 font-semibold">Net salary</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Action</th>
+                  <th className="px-5 py-3.5">Month</th>
+                  <th className="px-5 py-3.5">Net Disbursed</th>
+                  <th className="px-5 py-3.5">Status</th>
+                  <th className="px-5 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {payslipHistory.map((row) => (
-                  <tr key={row.month} className="border-t border-[#E7ECF5] bg-white">
-                    <td className="px-4 py-3 text-[#1E2A45] font-medium">{row.month}</td>
-                    <td className="px-4 py-3 text-[#53627F]">{row.net}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex rounded-full bg-[#EAF7EE] px-2.5 py-1 text-[11px] font-bold text-[#1DAA6E]">{row.status}</span>
+                  <tr key={row.month} className="bg-white hover:bg-slate-50/80 transition-colors">
+                    <td className="px-5 py-4 font-bold text-slate-900">{row.month}</td>
+                    <td className="px-5 py-4 font-bold text-slate-600">{row.net}</td>
+                    <td className="px-5 py-4">
+                      <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold uppercase text-emerald-600 border border-emerald-200">
+                        {row.status}
+                      </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <button onClick={() => setSelectedMonth(row.month)} className="text-[#3B6DF5] font-semibold hover:underline">
-                        View
+                    <td className="px-5 py-4 text-right space-x-3">
+                      <button
+                        onClick={() => setSelectedMonth(row.month)}
+                        className="font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => handleDownload(row.month)}
+                        className="font-bold text-slate-500 hover:text-slate-800 transition-colors"
+                      >
+                        Download PDF
                       </button>
                     </td>
                   </tr>

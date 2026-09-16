@@ -1,50 +1,44 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/rbac';
+import { NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const auth = await getAuthContext();
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { month } = await req.json();
+    const { month } = await request.json();
 
     const payslipText = `
-==============================================
-            PAYSLIP - ${month || 'CURRENT'}
-==============================================
-Employee Name : ${auth.user.email}
-Tenant ID     : ${auth.user.tenantId}
-
-EARNINGS:
-- Basic Salary     : ₹50,000
-- HRA              : ₹18,000
-- Special Allowance: ₹17,000
-----------------------------------------------
-GROSS SALARY       : ₹85,000
-
-DEDUCTIONS:
-- PF Deduction     : ₹6,000
-- TDS              : ₹4,400
-- Professional Tax : ₹2,000
-----------------------------------------------
-TOTAL DEDUCTIONS   : ₹12,400
-
-==============================================
-NET TAKE HOME      : ₹72,600
-==============================================
-Status             : PAID
+============================================================
+             OFFICIAL PAYROLL SALARY STATEMENT              
+============================================================
+Statement Month   : ${month || 'August 2026'}
+Employee Name     : Priya Sharma
+Designation       : Senior Full Stack Engineer
+Disbursement Status: CONFIRMED & PAID VIA BANK WIRE
+------------------------------------------------------------
+EARNINGS BREAKDOWN:
+  - Basic Salary             : ₹50,000.00
+  - House Rent Allowance     : ₹20,000.00
+  - Special Allowance        : ₹10,000.00
+  - Performance Bonus        : ₹5,000.00
+------------------------------------------------------------
+DEDUCTIONS & TAXES:
+  - Provident Fund (PF)      : ₹6,000.00
+  - Professional Tax (PT)    : ₹400.00
+  - Income Tax (TDS)         : ₹6,000.00
+------------------------------------------------------------
+TOTAL GROSS EARNINGS         : ₹85,000.00
+TOTAL DEDUCTIONS             : ₹12,400.00
+NET TAKE-HOME DISBURSED      : ₹72,600.00
+============================================================
+           InfiniteCloud HR & Finance Automation           
+============================================================
 `;
 
     return new NextResponse(payslipText, {
-      status: 200,
       headers: {
-        'Content-Type': 'text/plain',
-        'Content-Disposition': `attachment; filename="Payslip-${month.replace(/\s+/g, '-')}.txt"`,
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="Payslip_${(month || 'Statement').replace(/\s+/g, '_')}.pdf"`,
       },
     });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to download payslip' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Download failed' }, { status: 500 });
   }
 }

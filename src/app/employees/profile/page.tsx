@@ -3,8 +3,6 @@
 import Link from 'next/link';
 import {
   ArrowLeft,
-  BriefcaseBusiness,
-  Building2,
   Camera,
   Check,
   ChevronRight,
@@ -21,31 +19,31 @@ import {
   Wallet,
   Loader2,
   X,
+  Sparkles,
+  Edit3,
+  Building,
+  BadgeCheck,
+  Send,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
-const lifecycleSteps = [
-  { label: 'Onboarding', done: true },
-  { label: 'Active', active: true },
-  { label: 'Transfer/Promotion' },
-  { label: 'Leave/Exit' },
-  { label: 'Offboarding' },
-];
-
 const restrictedInfo = [
-  { title: 'Banking', description: 'Bank account, salary deposit, tax data', action: 'Request access' },
-  { title: 'Government / Identity', description: 'Aadhaar, passport, DL, compliance records', action: 'Request access' },
+  { title: 'Bank Account & Salary Wire', description: 'Direct deposit accounts, payslips, and tax withholding', action: 'Request Clearance' },
+  { title: 'Identity & National Records', description: 'Tax registration, identity certificates, and legal files', action: 'Request Clearance' },
 ];
 
-function InfoBlock({ title, items }: { title: string; items: { label: string; value: string }[] }) {
+function InfoCard({ title, items }: { title: string; items: { label: string; value: string }[] }) {
   return (
-    <div className="profile-card p-5">
-      <h3 className="mb-4 text-[15px] font-bold text-[#1E2A45]">{title}</h3>
-      <div className="grid gap-4 md:grid-cols-2">
+    <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-6 shadow-sm backdrop-blur-xl transition-all hover:border-blue-400/40 hover:shadow-lg">
+      <div className="mb-4 flex items-center justify-between">
+        <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">{title}</h3>
+        <div className="h-2 w-2 rounded-full bg-blue-500" />
+      </div>
+      <div className="grid gap-3.5 md:grid-cols-2">
         {items.map(({ label, value }) => (
-          <div key={label} className="profile-info-tile p-3">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7581A3]">{label}</div>
-            <div className="mt-1 text-[13px] font-medium text-[#1E2A45]">{value}</div>
+          <div key={label} className="group rounded-2xl border border-slate-100 bg-slate-50/70 p-3.5 transition-all hover:bg-blue-50/40 hover:border-blue-100">
+            <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 group-hover:text-blue-600 transition-colors">{label}</div>
+            <div className="mt-1 text-xs font-bold text-slate-800">{value}</div>
           </div>
         ))}
       </div>
@@ -57,356 +55,506 @@ export default function EmployeeProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Edit form states
+  // Dynamic Server States
+  const [profile, setProfile] = useState<any>(null);
+  const [lifecycle, setLifecycle] = useState<any[]>([]);
+
+  // Form Fields
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [location, setLocation] = useState('');
 
-  const fetchProfile = async () => {
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const fetchProfileData = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/v1/profile');
-      const contentType = res.headers.get('content-type');
-      if (res.ok && contentType && contentType.includes('application/json')) {
+      const res = await fetch('/api/v1/lifecycle');
+      if (res.ok) {
         const data = await res.json();
         setProfile(data.profile);
+        setLifecycle(data.lifecycle || []);
+        setName(data.profile.name);
         setPhone(data.profile.phone);
         setLocation(data.profile.location);
       }
     } catch (err) {
-      console.error('Failed to load profile:', err);
+      console.error('Failed to load profile data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchProfile();
+    fetchProfileData();
   }, []);
 
-  const handleSaveProfile = async () => {
+  // 1. Edit Profile & Transmit to Admin, HR & Manager
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
       setSaving(true);
-      const res = await fetch('/api/v1/profile', {
+      const res = await fetch('/api/v1/lifecycle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, location }),
+        body: JSON.stringify({ type: 'UPDATE_PROFILE', name, phone, location }),
       });
 
       if (res.ok) {
         setShowEditModal(false);
-        fetchProfile();
+        await fetchProfileData();
+        triggerToast('Profile saved & dispatched to Admin, HR & Manager!');
+      } else {
+        triggerToast('Failed to sync profile changes.');
       }
     } catch (err) {
-      alert('Failed to update profile');
+      triggerToast('Error updating backend database.');
     } finally {
       setSaving(false);
     }
   };
 
+  // 2. Interactive Lifecycle Stage Status Toggle
+  const handleLifecycleStepClick = async (step: any) => {
+    const nextStatus = step.status === 'Completed' ? 'Active' : step.status === 'Active' ? 'Pending' : 'Completed';
+    try {
+      const res = await fetch('/api/v1/lifecycle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'UPDATE_LIFECYCLE',
+          stepId: step.id,
+          nextStatus,
+        }),
+      });
+
+      if (res.ok) {
+        await fetchProfileData();
+        triggerToast(`Stage "${step.label}" marked as ${nextStatus}. Admin & HR notified!`);
+      }
+    } catch (err) {
+      console.error('Lifecycle status update error:', err);
+    }
+  };
+
   if (loading || !profile) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#F4F7FC]">
-        <Loader2 className="h-8 w-8 animate-spin text-[#3B6DF5]" />
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
     );
   }
 
   return (
-    <div className="profile-page-bg min-h-screen text-[#1E2A45]">
-      {/* Edit Profile Modal */}
+    <div className="min-h-screen bg-slate-50/70 text-slate-900 pb-16">
+      
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-2xl border border-blue-200 bg-white p-4 shadow-2xl backdrop-blur-xl animate-bounce">
+          <Sparkles className="h-5 w-5 text-blue-600" />
+          <span className="text-xs font-bold text-slate-800">{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Glassmorphism Edit Profile Modal */}
       {showEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4" onClick={() => setShowEditModal(false)}>
-          <div className="w-full max-w-md rounded-[22px] border border-[#E7ECF5] bg-white p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[#E7ECF5] pb-3 mb-4">
-              <h3 className="text-[16px] font-bold text-[#1E2A45]">Edit Contact Details</h3>
-              <button onClick={() => setShowEditModal(false)} className="text-slate-400 hover:text-slate-600"><X className="h-5 w-5" /></button>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-[12px] font-semibold text-[#53627F] mb-1">Phone Number</label>
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                  className="w-full rounded-[12px] border border-[#E7ECF5] bg-[#F8FAFF] px-3 py-2.5 text-[13px] text-[#1E2A45] outline-none focus:border-[#3B6DF5]"
-                />
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-md p-4 transition-all"
+          onClick={() => setShowEditModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <Edit3 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">Edit Profile Details</h3>
+                  <p className="text-[11px] font-bold text-slate-400">Syncs to Admin, HR & Manager Portals</p>
+                </div>
               </div>
-              <div>
-                <label className="block text-[12px] font-semibold text-[#53627F] mb-1">Work Location</label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={e => setLocation(e.target.value)}
-                  className="w-full rounded-[12px] border border-[#E7ECF5] bg-[#F8FAFF] px-3 py-2.5 text-[13px] text-[#1E2A45] outline-none focus:border-[#3B6DF5]"
-                />
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end gap-3">
-              <button onClick={() => setShowEditModal(false)} className="rounded-full border border-[#E7ECF5] px-4 py-2 text-[12px] font-semibold text-[#53627F]">Cancel</button>
               <button
-                onClick={handleSaveProfile}
-                disabled={saving}
-                className="inline-flex items-center gap-2 rounded-full bg-[#3B6DF5] px-5 py-2 text-[12px] font-semibold text-white hover:bg-[#2F5FE7] disabled:opacity-50"
+                onClick={() => setShowEditModal(false)}
+                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
               >
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                Save Changes
+                <X className="h-5 w-5" />
               </button>
             </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-600/10 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-600/10 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+                  Work Location
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 text-xs font-semibold text-slate-800 outline-none focus:border-blue-600 focus:bg-white focus:ring-2 focus:ring-blue-600/10 transition-all"
+                />
+              </div>
+
+              <div className="mt-6 flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(false)}
+                  className="rounded-xl px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/25 transition-all hover:bg-blue-500 active:scale-95 disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Save & Dispatch Update
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      <div className="mx-auto max-w-[1380px] px-4 py-6 lg:px-8">
+      {/* Main Container */}
+      <div className="mx-auto max-w-[1380px] px-4 py-8 lg:px-8">
+        
+        {/* Navigation Breadcrumb */}
         <div className="mb-6 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-[13px] text-[#667599]">
-            <Link href="/employees" className="inline-flex items-center gap-2 font-medium text-[#3B6DF5] hover:text-[#2952C8]">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+            <Link href="/employees" className="inline-flex items-center gap-1.5 font-bold text-blue-600 hover:text-blue-700 transition-colors">
               <ArrowLeft className="h-4 w-4" />
-              Dashboard
+              Employee Portal
             </Link>
-            <ChevronRight className="h-4 w-4 text-[#99A6C2]" />
-            <span className="font-semibold text-[#1E2A45]">My profile</span>
+            <ChevronRight className="h-4 w-4 text-slate-400" />
+            <span className="font-extrabold text-slate-900">Executive Profile & Lifecycle</span>
           </div>
 
           <button
             onClick={() => setShowEditModal(true)}
-            className="profile-action-btn rounded-full border border-[#DDE6FF] bg-white px-4 py-2 text-[12px] font-semibold text-[#3B6DF5] shadow-sm hover:bg-[#F3F7FF]"
+            className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-600/20 transition-all hover:bg-blue-500 active:scale-95"
           >
-            Edit profile
+            <Edit3 className="h-4 w-4" />
+            <span>Edit Profile</span>
           </button>
         </div>
 
-        <div className="profile-shell rounded-[26px] border border-[#E7ECF5] p-5 lg:p-7">
-          <div className="grid gap-7 xl:grid-cols-[320px_1fr]">
-            <aside className="profile-soft-card p-5">
-              <div className="relative mx-auto mb-5 h-[112px] w-[112px]">
-                <div className="flex h-full w-full items-center justify-center rounded-full bg-gradient-to-br from-[#D9E6FF] via-[#EEF4FF] to-[#C8D9FF] text-[34px] font-bold text-[#3B6DF5] shadow-[0_12px_30px_rgba(59,109,245,0.15)]">
-                  {profile.name.split(' ').map((n: string) => n[0]).join('')}
-                </div>
-                <button className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-[#3B6DF5] text-white shadow-lg transition hover:bg-[#2D5EE8]">
-                  <Camera className="h-[17px] w-[17px]" />
-                </button>
-              </div>
+        {/* Hero Profile Banner */}
+        <div className="relative mb-8 overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 shadow-sm backdrop-blur-xl">
+          <div className="h-36 bg-gradient-to-r from-blue-700 via-indigo-600 to-sky-500 p-6">
+            <div className="flex justify-end">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3.5 py-1 text-[10px] font-black uppercase tracking-widest text-white backdrop-blur-md">
+                <BadgeCheck className="h-3.5 w-3.5 text-emerald-300" />
+                Synced with Admin, HR & Manager
+              </span>
+            </div>
+          </div>
 
-              <div className="text-center">
-                <h1 className="text-[28px] font-extrabold tracking-[-0.03em] text-[#1E2A45]">{profile.name}</h1>
-                <p className="mt-1 text-[14px] font-medium text-[#53627F]">{profile.designation}</p>
-              </div>
-
-              <div className="mt-5 flex items-center justify-between rounded-[14px] bg-white px-4 py-3 shadow-sm">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.08em] text-[#7581A3]">Employee ID</div>
-                  <div className="mt-1 text-[14px] font-bold text-[#1E2A45]">{profile.employeeId}</div>
-                </div>
-                <span className="rounded-full bg-[#EAF7EE] px-2.5 py-1 text-[11px] font-bold text-[#1DAA6E]">{profile.status}</span>
-              </div>
-
-              <div className="mt-5 space-y-3 text-[13px] text-[#53627F]">
-                <div className="flex items-center gap-3">
-                  <Mail className="h-4 w-4 text-[#3B6DF5]" />
-                  {profile.email}
-                </div>
-                <div className="flex items-center gap-3">
-                  <Phone className="h-4 w-4 text-[#3B6DF5]" />
-                  {profile.phone}
-                </div>
-                <div className="flex items-center gap-3">
-                  <MapPin className="h-4 w-4 text-[#3B6DF5]" />
-                  {profile.location}
-                </div>
-              </div>
-            </aside>
-
-            <div className="space-y-6">
-              <div className="profile-soft-card p-5">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#7581A3]">Lifecycle status</div>
-                    <h2 className="mt-1 text-[18px] font-bold text-[#1E2A45]">Employee journey</h2>
+          <div className="relative px-6 pb-6 pt-0">
+            <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between -mt-14">
+              <div className="flex flex-col sm:flex-row items-center sm:items-end gap-5">
+                <div className="relative h-28 w-28 shrink-0">
+                  <div className="flex h-full w-full items-center justify-center rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-500 text-3xl font-black text-white shadow-xl ring-4 ring-white">
+                    {profile.name.split(' ').map((n: string) => n[0]).join('')}
                   </div>
-                  <span className="rounded-full bg-[#EAF0FF] px-2.5 py-1 text-[11px] font-bold text-[#3B6DF5]">Current stage</span>
+                  <button className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-2xl border-2 border-white bg-blue-600 text-white shadow-md transition-transform hover:scale-105 active:scale-95">
+                    <Camera className="h-4 w-4" />
+                  </button>
                 </div>
 
-                <div className="grid gap-3 md:grid-cols-5">
-                  {lifecycleSteps.map(({ label, done, active }, index) => (
-                    <div key={label} className="flex items-center gap-3">
-                      <div
-                        className={`relative flex h-9 w-9 items-center justify-center rounded-full ${
-                          done ? 'bg-[#2DBE72] text-white' : active ? 'bg-[#3B6DF5] text-white' : 'bg-[#E5EBF7] text-[#60729F]'
-                        }`}
-                      >
-                        {done ? <Check className="h-4 w-4" /> : index + 1}
-                      </div>
-                      <div className={`text-[12px] font-semibold ${active ? 'text-[#3B6DF5]' : done ? 'text-[#1DAA6E]' : 'text-[#6C7A99]'}`}>
-                        {label}
-                      </div>
-                    </div>
-                  ))}
+                <div className="text-center sm:text-left">
+                  <h1 className="text-2xl font-black text-slate-900">{profile.name}</h1>
+                  <p className="text-xs font-bold text-blue-600">{profile.designation}</p>
                 </div>
               </div>
 
-              <div className="grid gap-6 lg:grid-cols-[1.1fr_1.2fr]">
-                <div className="profile-card p-5">
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#EAF0FF] text-[#3B6DF5]">
-                      <UserCircle2 className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="text-[12px] uppercase tracking-[0.08em] text-[#7581A3]">Reporting manager</div>
-                      <h3 className="text-[16px] font-bold text-[#1E2A45]">Manager</h3>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 rounded-[14px] bg-[#F8FAFF] p-3">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-[#DCE9FF] to-[#F1F5FF] text-[18px] font-bold text-[#3B6DF5]">
-                      {profile.manager.initials}
-                    </div>
-                    <div className="flex-1">
-                      <div className="text-[15px] font-bold text-[#1E2A45]">{profile.manager.name}</div>
-                      <div className="text-[12px] text-[#53627F]">{profile.manager.designation}</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 space-y-3 text-[13px] text-[#53627F]">
-                    <div className="flex items-center gap-3">
-                      <Mail className="h-4 w-4 text-[#3B6DF5]" />
-                      {profile.manager.email}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Phone className="h-4 w-4 text-[#3B6DF5]" />
-                      {profile.manager.phone}
-                    </div>
-                  </div>
+              <div className="flex items-center justify-center gap-3">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-2 text-center">
+                  <div className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Employee ID</div>
+                  <div className="text-xs font-black text-slate-800">{profile.employeeId}</div>
                 </div>
-
-                <div className="profile-card p-5">
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#EAF0FF] text-[#3B6DF5]">
-                      <ShieldCheck className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="text-[12px] uppercase tracking-[0.08em] text-[#7581A3]">Security</div>
-                      <h3 className="text-[16px] font-bold text-[#1E2A45]">Password & security</h3>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 text-[13px] text-[#53627F]">
-                    <div className="flex items-center justify-between rounded-[12px] bg-[#F8FAFF] p-3">
-                      <span className="flex items-center gap-2">
-                        <Lock className="h-4 w-4 text-[#3B6DF5]" />
-                        Last password change
-                      </span>
-                      <span className="font-semibold text-[#1E2A45]">{profile.security.lastPasswordChange}</span>
-                    </div>
-                    <div className="flex items-center justify-between rounded-[12px] bg-[#F8FAFF] p-3">
-                      <span className="flex items-center gap-2">
-                        <ShieldCheck className="h-4 w-4 text-[#3B6DF5]" />
-                        Last login
-                      </span>
-                      <span className="font-semibold text-[#1E2A45]">{profile.security.lastLogin}</span>
-                    </div>
-                  </div>
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-center">
+                  <div className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600">Status</div>
+                  <div className="text-xs font-black text-emerald-700">{profile.status}</div>
                 </div>
               </div>
+            </div>
 
-              <div className="profile-card p-5">
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#EAF0FF] text-[#3B6DF5]">
-                    <FileText className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.08em] text-[#7581A3]">Documents</div>
-                    <h3 className="text-[16px] font-bold text-[#1E2A45]">Official records</h3>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {profile.documents.map(({ name, status, state }: any) => (
-                    <div key={name} className="rounded-[14px] border border-[#E7ECF5] bg-[#F8FAFF] p-4">
-                      <div className="mb-3 flex items-center justify-between">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-white text-[#3B6DF5] shadow-sm">
-                          <FileText className="h-4 w-4" />
-                        </div>
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${
-                            state === 'success' ? 'bg-[#EAF7EE] text-[#1DAA6E]' : 'bg-[#FFF3D8] text-[#C98900]'
-                          }`}
-                        >
-                          {status}
-                        </span>
-                      </div>
-                      <div className="text-[14px] font-bold text-[#1E2A45]">{name}</div>
-                    </div>
-                  ))}
-                </div>
+            {/* Quick Contact Info */}
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-5 text-xs font-semibold text-slate-600">
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-blue-600" />
+                <span>{profile.email}</span>
               </div>
-
-              <div className="profile-card p-5">
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#EAF0FF] text-[#3B6DF5]">
-                    <Laptop className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.08em] text-[#7581A3]">Assets</div>
-                    <h3 className="text-[16px] font-bold text-[#1E2A45]">Assigned company assets</h3>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-3">
-                  {profile.assets.map(({ name, details, tone }: any) => (
-                    <div key={name} className="rounded-[14px] border border-[#E7ECF5] bg-[#F8FAFF] p-4">
-                      <div
-                        className={`mb-3 flex h-10 w-10 items-center justify-center rounded-[10px] ${
-                          tone === 'blue'
-                            ? 'bg-[#EAF0FF] text-[#3B6DF5]'
-                            : tone === 'purple'
-                            ? 'bg-[#F0EBFF] text-[#7B5AF0]'
-                            : 'bg-[#EAF7EE] text-[#1DAA6E]'
-                        }`}
-                      >
-                        {name === 'Laptop' ? <Laptop className="h-5 w-5" /> : name === 'SIM card' ? <Smartphone className="h-5 w-5" /> : <IdCard className="h-5 w-5" />}
-                      </div>
-                      <div className="text-[14px] font-bold text-[#1E2A45]">{name}</div>
-                      <div className="mt-1 text-[12px] text-[#53627F]">{details}</div>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-blue-600" />
+                <span>{profile.phone}</span>
               </div>
-
-              <div className="profile-card p-5">
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[#EAF0FF] text-[#3B6DF5]">
-                    <Wallet className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="text-[12px] uppercase tracking-[0.08em] text-[#7581A3]">Restricted info</div>
-                    <h3 className="text-[16px] font-bold text-[#1E2A45]">Sensitive access</h3>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  {restrictedInfo.map(({ title, description, action }) => (
-                    <div key={title} className="flex items-center justify-between gap-4 rounded-[14px] border border-[#E7ECF5] bg-[#F8FAFF] p-4">
-                      <div>
-                        <div className="text-[14px] font-bold text-[#1E2A45]">{title}</div>
-                        <div className="mt-1 text-[12px] text-[#53627F]">{description}</div>
-                      </div>
-                      <button className="profile-action-btn rounded-full bg-[#EAF0FF] px-3 py-2 text-[11px] font-bold text-[#3B6DF5] hover:bg-[#DEE9FF]">
-                        {action}
-                      </button>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-blue-600" />
+                <span>{profile.location}</span>
               </div>
-
-              <div className="grid gap-5 xl:grid-cols-3">
-                <InfoBlock title="Personal information" items={profile.personalInfo} />
-                <InfoBlock title="Employment information" items={profile.employmentInfo} />
-                <InfoBlock title="Emergency information" items={profile.emergencyInfo} />
+              <div className="flex items-center gap-2">
+                <Building className="h-4 w-4 text-blue-600" />
+                <span>{profile.department}</span>
               </div>
             </div>
           </div>
+        </div>
+
+        <div className="space-y-6">
+          
+          {/* 5-Stage Career Lifecycle Component */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-600">Lifecycle Engine</span>
+                <h2 className="text-base font-black text-slate-900">Career Progress Tracker (5 Stages)</h2>
+              </div>
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-extrabold uppercase tracking-wider text-blue-600 border border-blue-200">
+                Click stage to switch status & alert HR
+              </span>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-5">
+              {lifecycle.map((step) => {
+                const isCompleted = step.status === 'Completed';
+                const isActive = step.status === 'Active';
+
+                return (
+                  <div
+                    key={step.id}
+                    onClick={() => handleLifecycleStepClick(step)}
+                    className={`group cursor-pointer flex flex-col justify-between rounded-2xl border p-4 transition-all duration-300 select-none ${
+                      isCompleted
+                        ? 'border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100/60'
+                        : isActive
+                        ? 'border-blue-500/50 bg-blue-50/60 shadow-md ring-2 ring-blue-500/20 hover:bg-blue-100/50'
+                        : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/80'
+                    }`}
+                  >
+                    <div>
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className={`flex h-8 w-8 items-center justify-center rounded-xl text-xs font-black transition-transform group-hover:scale-110 ${
+                          isCompleted ? 'bg-emerald-600 text-white' : isActive ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-500'
+                        }`}>
+                          {isCompleted ? <Check className="h-4 w-4" /> : step.id}
+                        </span>
+                        <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase ${
+                          isCompleted ? 'bg-emerald-100 text-emerald-700' : isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {step.status}
+                        </span>
+                      </div>
+                      <h4 className={`text-xs font-black ${isActive ? 'text-blue-700' : isCompleted ? 'text-emerald-800' : 'text-slate-700'}`}>
+                        {step.label}
+                      </h4>
+                      <p className="mt-1 text-[10px] font-medium text-slate-500 line-clamp-2">{step.description}</p>
+                    </div>
+
+                    <div className="mt-4 border-t border-slate-200/60 pt-2 flex items-center justify-between text-[9px] font-extrabold text-slate-400">
+                      <span>{step.updatedBy}</span>
+                      <span>{step.timestamp}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Profile Details Sections */}
+          <div className="grid gap-6 xl:grid-cols-3">
+            <InfoCard title="Personal Information" items={profile.personalInfo} />
+            <InfoCard title="Employment Profile" items={profile.employmentInfo} />
+            <InfoCard title="Emergency Contacts" items={profile.emergencyInfo} />
+          </div>
+
+          {/* Reporting Officer & Security Row */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            
+            {/* Direct Manager */}
+            <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
+                  <UserCircle2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Hierarchy</span>
+                  <h3 className="text-sm font-black text-slate-900">Reporting Officer</h3>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 rounded-2xl bg-slate-50/80 p-4 border border-slate-100">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-sm font-black text-white shadow-md">
+                  {profile.manager.initials}
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-black text-slate-900">{profile.manager.name}</div>
+                  <div className="text-xs font-bold text-slate-400">{profile.manager.designation}</div>
+                </div>
+                <div className="space-y-1 text-right text-xs font-semibold text-slate-600">
+                  <div>{profile.manager.email}</div>
+                  <div>{profile.manager.phone}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Authentication & Access */}
+            <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Security</span>
+                  <h3 className="text-sm font-black text-slate-900">Authentication Controls</h3>
+                </div>
+              </div>
+
+              <div className="space-y-3 text-xs font-semibold text-slate-600">
+                <div className="flex items-center justify-between rounded-2xl bg-slate-50/80 p-3.5 border border-slate-100">
+                  <span className="flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-blue-600" />
+                    Last Password Change
+                  </span>
+                  <span className="font-bold text-slate-900">{profile.security.lastPasswordChange}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-2xl bg-slate-50/80 p-3.5 border border-slate-100">
+                  <span className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-blue-600" />
+                    Active Session Activity
+                  </span>
+                  <span className="font-bold text-slate-900">{profile.security.lastLogin}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Verification Records & Inventory Assets */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            
+            {/* Document Verification */}
+            <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Verification</span>
+                  <h3 className="text-sm font-black text-slate-900">Official Record Files</h3>
+                </div>
+              </div>
+
+              <div className="grid gap-3.5 sm:grid-cols-2">
+                {profile.documents.map(({ name, status, state }: any) => (
+                  <div key={name} className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 transition-all hover:bg-white hover:border-blue-200">
+                    <div className="mb-2 flex items-center justify-between">
+                      <FileText className="h-4 w-4 text-blue-600" />
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase ${
+                        state === 'success' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
+                      }`}>
+                        {status}
+                      </span>
+                    </div>
+                    <div className="text-xs font-bold text-slate-900">{name}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Assets */}
+            <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
+                  <Laptop className="h-5 w-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Inventory</span>
+                  <h3 className="text-sm font-black text-slate-900">Assigned Company Assets</h3>
+                </div>
+              </div>
+
+              <div className="grid gap-3.5 sm:grid-cols-3">
+                {profile.assets.map(({ name, details, tone }: any) => (
+                  <div key={name} className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3.5 transition-all hover:bg-white hover:border-blue-200">
+                    <div className={`mb-2 flex h-8 w-8 items-center justify-center rounded-xl ${
+                      tone === 'blue' ? 'bg-blue-50 text-blue-600' : tone === 'purple' ? 'bg-purple-50 text-purple-600' : 'bg-emerald-50 text-emerald-600'
+                    }`}>
+                      {name === 'Workstation' ? <Laptop className="h-4 w-4" /> : name === 'Corporate Mobile' ? <Smartphone className="h-4 w-4" /> : <IdCard className="h-4 w-4" />}
+                    </div>
+                    <div className="text-xs font-bold text-slate-900">{name}</div>
+                    <div className="mt-1 text-[10px] font-semibold text-slate-400">{details}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Sensitive Clearance Access */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-sm backdrop-blur-xl">
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 border border-blue-100">
+                <Wallet className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Restricted Data</span>
+                <h3 className="text-sm font-black text-slate-900">Sensitive Information Access</h3>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {restrictedInfo.map(({ title, description, action }) => (
+                <div key={title} className="flex items-center justify-between gap-4 rounded-2xl border border-slate-100 bg-slate-50/80 p-4">
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">{title}</div>
+                    <div className="mt-1 text-[11px] font-medium text-slate-400">{description}</div>
+                  </div>
+                  <button
+                    onClick={() => triggerToast(`Clearance request sent to HR for ${title}`)}
+                    className="rounded-xl bg-blue-50 border border-blue-200 px-3 py-2 text-[10px] font-extrabold uppercase tracking-wider text-blue-600 hover:bg-blue-600 hover:text-white transition-all active:scale-95 shrink-0"
+                  >
+                    {action}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

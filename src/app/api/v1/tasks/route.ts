@@ -1,73 +1,45 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getAuthContext } from '@/lib/rbac';
-import { getDatabase } from '@/lib/db';
-import { ObjectId } from 'mongodb';
+import { NextResponse } from 'next/server';
 
-export const dynamic = 'force-dynamic';
+// Temporary In-Memory Data store for dynamic state synchronization
+let tasksDatabase = [
+  { id: '1', title: 'Refactor Authentication Pipeline', project: 'Security API', priority: 'High', due: '18 Sep 2026', status: 'todo', assignedBy: 'Manager (Rajesh K.)' },
+  { id: '2', title: 'Design Glassmorphism Dashboard', project: 'UI/UX Redesign', priority: 'High', due: '19 Sep 2026', status: 'inprogress', assignedBy: 'Manager (Rajesh K.)' },
+  { id: '3', title: 'MongoDB Index Optimization', project: 'Database Core', priority: 'Medium', due: '22 Sep 2026', status: 'inprogress', assignedBy: 'Admin' },
+  { id: '4', title: 'Setup CI/CD Deployment Pipeline', project: 'DevOps', priority: 'Low', due: '15 Sep 2026', status: 'done', assignedBy: 'Manager (Rajesh K.)' },
+];
 
-export async function GET(req: NextRequest) {
+export async function GET() {
+  return NextResponse.json({ success: true, tasks: tasksDatabase });
+}
+
+export async function POST(request: Request) {
   try {
-    const auth = await getAuthContext();
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const body = await request.json();
+    const newTask = {
+      id: Date.now().toString(),
+      title: body.title,
+      project: body.project || 'General',
+      priority: body.priority || 'Medium',
+      due: body.due || 'Upcoming',
+      status: body.status || 'todo',
+      assignedBy: body.assignedBy || 'Self / Employee',
+    };
 
-    const db = await getDatabase();
-    const userId = auth.user._id;
-    const tenantId = auth.user.tenantId;
-
-    const dbTasks = await db
-      .collection('tasks')
-      .find({ tenantId, assignedTo: userId })
-      .sort({ createdAt: -1 })
-      .toArray();
-
-    if (!dbTasks || dbTasks.length === 0) {
-      const defaultTasks = [
-        { id: '1', title: 'Review updated design mockups', due: 'Today', status: 'todo', priority: 'High', project: 'Design System v2' },
-        { id: '2', title: 'Update component documentation', due: 'Sep 14', status: 'inprogress', priority: 'Medium', project: 'Design System v2' },
-        { id: '3', title: 'Submit Q3 self-review form', due: 'Sep 15', status: 'inprogress', priority: 'High', project: 'HR Process' },
-        { id: '4', title: 'Prepare sprint retrospective notes', due: 'Sep 16', status: 'todo', priority: 'Medium', project: 'Mobile App MVP' },
-        { id: '5', title: 'Finalize onboarding deck', due: 'Sep 10', status: 'done', priority: 'Low', project: 'HR Process' },
-        { id: '6', title: 'Prototype review feedback', due: 'Sep 8', status: 'done', priority: 'Medium', project: 'UX Research' },
-      ];
-      return NextResponse.json({ tasks: defaultTasks });
-    }
-
-    const formattedTasks = dbTasks.map((t) => ({
-      id: t._id.toString(),
-      title: t.title,
-      due: t.dueDate || 'No date',
-      status: t.status || 'todo',
-      priority: t.priority || 'Medium',
-      project: t.projectName || 'General',
-    }));
-
-    return NextResponse.json({ tasks: formattedTasks });
-  } catch (error: any) {
-    return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
+    tasksDatabase.unshift(newTask);
+    return NextResponse.json({ success: true, task: newTask }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: 'Failed to add task' }, { status: 500 });
   }
 }
 
-export async function PATCH(req: NextRequest) {
+export async function PUT(request: Request) {
   try {
-    const auth = await getAuthContext();
-    if (!auth) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { taskId, newStatus } = await req.json();
-    const db = await getDatabase();
-
-    if (ObjectId.isValid(taskId)) {
-      await db.collection('tasks').updateOne(
-        { _id: new ObjectId(taskId), tenantId: auth.user.tenantId },
-        { $set: { status: newStatus, updatedAt: new Date() } }
-      );
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
+    const body = await request.json();
+    tasksDatabase = tasksDatabase.map((t) =>
+      t.id === body.id ? { ...t, status: body.status } : t
+    );
+    return NextResponse.json({ success: true, tasks: tasksDatabase });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: 'Failed to update task' }, { status: 500 });
   }
 }
