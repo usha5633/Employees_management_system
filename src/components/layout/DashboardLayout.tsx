@@ -12,13 +12,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-50 font-sans text-slate-900 antialiased">
-      {/* Sidebar */}
+    <div className="flex h-screen w-full overflow-hidden bg-[#F8FAFC] font-sans text-slate-900 antialiased selection:bg-blue-600 selection:text-white">
+      {/* Glassmorphic Sidebar Component */}
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       {/* Main Content Wrapper */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header */}
+        {/* Sticky Glass Top Header */}
         <Header onMenuClick={() => setIsSidebarOpen(true)} />
 
         {/* Scrollable Main Area */}
